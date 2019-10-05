@@ -1,0 +1,22 @@
+!frame!radiobutton things: ('textvariable', 'textVariable', 'Variable', '', '')
+!frame!radiobutton things: ('tristatevalue', 'tristateValue', 'TristateValue', '', '')
+!frame!radiobutton things: ('value', 'value', 'Value', '', 'en-US')
+!frame!radiobutton things: ('variable', 'variable', 'Variable', 'selectedButton', <parsedVarName object: 'PY_VAR0'>)
+
+!frame!radiobutton2 things: ('textvariable', 'textVariable', 'Variable', '', '')
+!frame!radiobutton2 things: ('tristatevalue', 'tristateValue', 'TristateValue', '', '')
+!frame!radiobutton2 things: ('value', 'value', 'Value', '', 'pt-BR')
+!frame!radiobutton2 things: ('variable', 'variable', 'Variable', 'selectedButton', <parsedVarName object: 'PY_VAR0'>)
+
+!frame2!checkbutton things: ('offvalue', 'offValue', 'Value', '0', 0)
+!frame2!checkbutton things: ('onvalue', 'onValue', 'Value', '1', 1)
+!frame2!checkbutton things: ('textvariable', 'textVariable', 'Variable', '', '')
+!frame2!checkbutton things: ('tristatevalue', 'tristateValue', 'TristateValue', '', '')
+!frame2!checkbutton things: ('variable', 'variable', 'Variable', '', <parsedVarName object: 'PY_VAR1'>)
+
+cb:
+['activebackground', 'activeforeground', 'anchor', 'background', 'bd', 'bg', 'bitmap', 'borderwidth', 'command', 'compound', 'cursor', 'disabledforeground', 'fg', 'font', 'foreground', 'height', 'highlightbackground', 'highlightcolor', 'highlightthickness', 'image', 'indicatoron', 'justify', 'offrelief', 'offvalue', 'onvalue', 'overrelief', 'padx', 'pady', 'relief', 'selectcolor', 'selectimage', 'state', 'takefocus', 'text', 'textvariable', 'tristateimage', 'tristatevalue', 'underline', 'variable', 'width', 'wraplength']
+
+rb:
+['activebackground', 'activeforeground', 'anchor', 'background', 'bd', 'bg', 'bitmap', 'borderwidth', 'command', 'compound', 'cursor', 'disabledforeground', 'fg', 'font', 'foreground', 'height', 'highlightbackground', 'highlightcolor', 'highlightthickness', 'image', 'indicatoron', 'justify', 'offrelief', 'overrelief', 'padx', 'pady', 'relief', 'selectcolor', 'selectimage', 'state', 'takefocus', 'text', 'textvariable', 'tristateimage', 'tristatevalue', 'underline', 'value', 'variable', 'width', 'wraplength']
+

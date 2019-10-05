@@ -1,0 +1,40 @@
+% UFU-MG adaptada XXXX
+% Uso: simulado01 2018
+\begin{Exercise}[label=q:ufu,origin={UFU--MG, adaptada}]
+Calcule $1+1$.
+\begin{choices}
+\choice 77.
+\choice 43.
+\CorrectChoice 2.
+\choice 89.
+\choice 109.
+\end{choices}
+\end{Exercise}
+\begin{Answer}
+Aritmética básica.
+\end{Answer}
+
+
+% UFA-AM XXXX
+% Uso: simulado01 2018
+\begin{Exercise}[label=ufa,origin={UFA-AM}]
+Assinale o item que identifica a função da linguagem predominante no seguinte texto:
+
+A lâmpada de tungstênio é a mais comum de todas.
+É constituída de um globo de vidro transparente ou opaco soldado a um soquete de latão.
+Dentro dele, uma haste também de vidro sustenta uma armação de arame com um filamento (fio dobrado em ziguezague) de tungstênio.
+Quando a eletricidade passa através do filamento, ele esquenta; ele fica tão aquecido que passa do vermelho ao branco.
+Isto é chamado incandescência e com esta luz assim produzida podemos ler, escrever e trabalhar.
+
+\begin{choices}
+\CorrectChoice referencial.
+\choice fática.
+\choice conativa.
+\choice metalinguística.
+\choice emotiva.
+\end{choices}
+\end{Exercise}
+\begin{Answer}
+Cf. minhas aulas.
+\end{Answer}
+
