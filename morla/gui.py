@@ -11,8 +11,8 @@ import io
 # import webbrowser as browser
 
 from tkinter.scrolledtext import ScrolledText as tkScrolledText
-from tkinter.constants import RAISED, SUNKEN, FLAT, RIDGE, GROOVE, SOLID
-from tkinter import ttk
+from tkinter.constants import N, S, E, W, RAISED, SUNKEN, FLAT, RIDGE, GROOVE, SOLID
+from tkinter import ttk, sys
 import tkinter as tk
 
 from morla.utils import *
@@ -80,7 +80,8 @@ class ScrolledText(tkScrolledText):
             if count.get() == 0:
                 break  # degenerate pattern which matches zero-length strings
             self.mark_set("matchStart", index)
-            self.mark_set("matchEnd", "%s+%sc" % (index, count.get()))
+            self.mark_set("matchEnd", f"{index}+{count.get()}")
+            # "%s+%sc" % (index, count.get()))
             self.tag_add(tag, "matchStart", "matchEnd")
 
 
@@ -303,8 +304,7 @@ def typeset_Text(content: str, Text: tk.Text, mode: str = "w") -> str:
 
 
 if __name__ == "__main__":
-    print("This module should not be run alone.")
-    tk.sys.exit()
+    sys.exit("This module should not be run alone.")
 
 _trash = """
 Pack a widget in the parent widget. Use as options:

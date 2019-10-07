@@ -19,9 +19,9 @@
 from morla.morlaframe import gui_loop
 
 
+# metadata
 SELETOR_NAME = "Morla"
 SELETOR_VERSION = (0, 1)
-VERBOSE = True
 SELETOR_AUTHOR = "Daniel Alves da Silva Lopes Diniz"
 SELETOR_EMAIL = "diniz.cpm<at>gmail.com"
 SELETOR_LICENSE = "GNU Affero General Public License v3 or later (AGPLv3+)"

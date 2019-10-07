@@ -4,7 +4,10 @@ from typing import Any, Callable, List, Iterable, Optional, Union, Tuple
 
 # sys is already loaded by tkinter; see below
 import os
-#import logging
+
+import io
+from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET
+import logging
 
 # import base64
 from functools import partial, wraps
@@ -26,7 +29,7 @@ from morla.preference import Preferences
 from morla.bulk import Parser
 from morla.gui import *
 from morla.tooltip import Tooltip
-
+from morla.morla_logging import init_logger
 import morla
 
 
@@ -45,8 +48,8 @@ TEXT_WIDTH = 40
 # fonts and cursors
 HEADER_FONT = ("Helvetica", "16", "bold")
 SANS_FONT = ("Helvetica", "12")
-# MONO_FONT = ("Courier", "12", NORMAL)
-MONO_FONT = "-*-courier-medium-r-*-*-12-*-*-*-*-*-*-*"
+MONO_FONT = ("Courier", "11")  # , NORMAL)
+# MONO_FONT = "TkFixedFont"  # "-*-courier-medium-r-*-*-12-*-*-*-*-*-*-*"
 # MONO_FONT = "-*-lucidatypewriter-medium-r-*-*-*-140-*-*-*-*-*-*"
 # MONO_FONT = "-*-terminal-medium-*-*-*-14-*-*-*-*-*-*-*"
 SERIF_FONT = "-*-times-medium-r-*-*-12-*-*-*-*-*-*-*"
@@ -81,13 +84,21 @@ def divert2log(f: Callable) -> Callable:
         with redirect_stdout(content), redirect_stderr(content):
             output = f(*args, **kwargs)
             try:
-                log_Text = args[0].log_text
+                self = args[0]
+                self.log(CRITICAL, content.getvalue())
             except (IndexError, AttributeError):
-                raise MorlaError(
-                    "> divert2log can only be called by a MorlaFrame method!"
-                )
-            else:
-                typeset_Text(content.getvalue(), log_Text, mode="a")
+                    raise MorlaError(
+                        "divert2log can only be called by a MorlaFrame method!"
+                    )
+            if False:
+                try:
+                    log_ScrolledText = args[0].log_text  # .Text
+                except (IndexError, AttributeError):
+                    raise MorlaError(
+                        "divert2log can only be called by a MorlaFrame method!"
+                    )
+                else:
+                    typeset_Text(content.getvalue(), log_ScrolledText, mode="a")
         return output
 
     return wrapper
@@ -103,25 +114,10 @@ class MorlaFrame(tk.Frame):
                 break
         return self.ftypes
 
-    def __init__(self) -> None:
+    def __init__(self, cmdline_arg: Optional[str] = "") -> None:
         master = tk.Tk()
         super(MorlaFrame, self).__init__(master)
         self.master = master
-        # master.attributes("-fullscreen", True)
-        # allow resizing; resizing is twice as fast horizontally
-        master.resizable(True, True)  # (False, False)
-        master.grid_rowconfigure(0, weight=2)
-        master.grid_columnconfigure(0, weight=1)
-        for row in (1, 2):
-            self.grid_rowconfigure(row, weight=2)
-        for col in range(4):
-            self.grid_columnconfigure(col, weight=1)
-        # language
-        with open(LANGUAGE_PATH, "r") as json_file:
-            language_dict = json.load(json_file)
-        if are_subdicts_invalid(language_dict):
-            raise MorlaError("> invalid JSON file!")
-        self.language_dict = language_dict
         # set the HOME_DIR
         # https://stackoverflow.com/a/10644400
         if os.name == "posix":
@@ -134,21 +130,17 @@ class MorlaFrame(tk.Frame):
             self.home_dir = HERE
         if not self.home_dir.endswith(os.sep):
             self.home_dir += os.sep
-        print("home dir:", self.home_dir)
+        self.log(DEBUG, f"home dir: {self.home_dir}")
         # set up the morla directory
         self.app_dir = "." if os.name != "nt" else ""
         self.app_dir += morla.SELETOR_NAME.lower().replace(" ", "-") + os.sep
-        self.full_app_dir = self.home_dir + self.app_dir
+        self.full_app_dir = os.path.join(self.home_dir, self.app_dir)
         if not os.path.isdir(self.full_app_dir):
+            self.log(INFO, f"creating {self.full_app_dir}")
             os.mkdir(self.full_app_dir)
-        print("app dir:", self.app_dir)
+        self.log(DEBUG, f"app dir: {self.app_dir}")
+        self.log(DEBUG, f"full app dir: {self.full_app_dir}")
         # both home_dir and app_dir end with os.sep
-        # set up a logging variable
-        #logging_stream = io.StringIO()
-        #logging.basicConfig(stream=logging_stream, level=logging.DEBUG)  # filename="example.log"
-        # last_dir and last_ext
-        self.last_dir = self.home_dir
-        self.last_ext = "*"
         # set a Preferences object
         prefs_path = "preferences.ini"
         with Cd(self.full_app_dir):
@@ -157,16 +149,30 @@ class MorlaFrame(tk.Frame):
                 try:
                     self.preferences.read(prefs_path)
                 except:
-                    print(f"> reading {prefs_path} failed!")
+                    self.log(CRITICAL, f"reading {prefs_path} failed!")
                     raise
                 else:
-                    print(f"> reading {prefs_path} succeeded!")
-                    print_sep()
+                    self.log(INFO, f"reading {prefs_path} succeeded!")
                     with open(prefs_path, "r") as ini_file:
-                        print(ini_file.read().strip())
-                    print_sep()
+                        content = ini_file.read().strip()
+                        self.log(INFO, EOL + content)
             else:
                 self.preferences.save()
+        # language
+        with open(LANGUAGE_PATH, "r") as json_file:
+            language_dict = json.load(json_file)
+        if are_subdicts_invalid(language_dict):
+            msg = f"reading {prefs_path} failed!"
+            self.log(CRITICAL, msg)
+            raise MorlaError(msg)
+        self.language_dict = language_dict
+        # menubars and widgets
+        self.init_menubar()
+        self.init_widgets()
+        # set up a logger
+        log_path = os.path.join(self.full_app_dir, morla.SELETOR_NAME.lower() + ".log")
+        self.logger = init_logger(log_path, self.log_text)
+        self.log(DEBUG, f"log_path: {log_path}")
         # icon
         icon_path = ICON_PATH
         # with open(icon_path, "rb") as icon:
@@ -176,7 +182,7 @@ class MorlaFrame(tk.Frame):
         try:
             icon = tk.PhotoImage(file=icon_path)
         except tk.TclError:
-            print(f"> Couldn't load {icon_path}")
+            self.log(WARNING, f"Couldn't load {icon_path}")
             self.icon = None
         else:
             master.tk.call("wm", "iconphoto", master._w, icon)
@@ -184,14 +190,20 @@ class MorlaFrame(tk.Frame):
         # misc settings
         master.protocol("WM_DELETE_WINDOW", self.prompt_quit)
         master.title(morla.SELETOR_NAME)
-        # menubars and widgets
-        self.init_menubar()
-        self.init_widgets()
         # create a default Configuration
         self.configs = Configuration()
         # create a parser
         self.parser = Parser()
-        # set a minimum size and display everything
+        # set a minimum size, allow resizing, and display everything
+        # master.attributes("-fullscreen", True)
+        master.resizable(True, True)  # (False, False)
+        # resizing is twice as fast horizontally
+        master.grid_rowconfigure(0, weight=2)
+        master.grid_columnconfigure(0, weight=1)
+        for row in (1, 2):
+            self.grid_rowconfigure(row, weight=2)
+        for col in range(4):
+            self.grid_columnconfigure(col, weight=1)
         self.grid(row=0, column=0, sticky=(N, S, E, W))
         master.deiconify()
         # master.geometry() will return "1x1+0+0" here
@@ -199,6 +211,25 @@ class MorlaFrame(tk.Frame):
         # now master.geometry() returns valid size/placement
         master.minsize(master.winfo_width(), master.winfo_height())
         center(master)
+        # load the file given as argument, if any
+        if cmdline_arg:
+            if not isinstance(cmdline_arg, str):
+                raise TypeError
+            self.open_file(cmdline_arg)
+        else:
+            self.last_dir = self.home_dir
+            self.last_ext = "*"
+
+    def log(self, level, msg, *args, **kwargs) -> None:
+        try:
+            self.logger.log(level, msg, *args, **kwargs)
+        except Exception as e:
+            print("logging failed:", e)
+            level_name = logging.getLevelName(level)
+            print(level_name, msg)
+        else:
+            pass
+            self.logger.debug("logging succeded")
 
     def get_string(
         self, key: str, lang: Optional[str] = None, capitalize: Optional[bool] = True
@@ -221,6 +252,11 @@ class MorlaFrame(tk.Frame):
             self.actually_quit()
 
     def actually_quit(self) -> None:
+        logging.shutdown()
+        # https://stackoverflow.com/a/36291907
+        for h in self.logger.handlers:
+            if isinstance(h, logging.FileHandler):
+                h.close()
         # self.quit()
         self.master.destroy()
 
@@ -327,9 +363,15 @@ class MorlaFrame(tk.Frame):
         )
         self.logRect.grid_rowconfigure(0, weight=2)
         self.logRect.grid_columnconfigure(0, weight=1)
-        # log area
+        # log Text
+        #self.log_text.textvariable if not first_time else tk.StringVar()
+        # self.log_text = FramedVariable(self, var, text=log_word, font=MONO_FONT)
+        # self.log_text.grid(
+        # row=2, column=0, columnspan=4, sticky=(N, S, E, W), padx=BORDER, pady=BORDER
+        # )
         self.log_text = ScrolledText(
             self.logRect,
+            #textvariable=self.log_StringVar,
             height=TEXT_HEIGHT // 3,
             width=TEXT_WIDTH * 2,
             bg="black",
@@ -337,9 +379,8 @@ class MorlaFrame(tk.Frame):
             font=MONO_FONT,
         )
         self.log_text.config(insertbackground="white", state=DISABLED)
-        self.log_text.grid(
-            row=0, sticky=(N, S, E, W), padx=BORDER, pady=BORDER
-        )  # row=2, column=0, columnspan=4,
+        self.log_text.grid(row=0, sticky=(N, S, E, W), padx=BORDER, pady=BORDER)
+        # row=2, column=0, columnspan=4,
 
     def open_preferences(self) -> None:
         # self.prefs_window = openToplevel()
@@ -434,7 +475,7 @@ class MorlaFrame(tk.Frame):
 
     def export2clipboard(self, content, *args) -> None:
         extra = COMMA.join([str(a) for a in args])
-        print("> extraneous arguments in export2clipboard:", extra)
+        print("extraneous arguments in export2clipboard:", extra)
         self.master.clipboard_clear()
         self.master.clipboard_append(content)
 
@@ -448,8 +489,11 @@ class MorlaFrame(tk.Frame):
         filename = filedialog.askopenfilename(
             initialdir=self.last_dir, title=open_file_word, filetypes=self.ftypes
         )
-        if not filename:
-            return
+        if filename:
+            self.open_file(filename)
+
+    @divert2log
+    def open_file(self, filename: str):
         self.last_dir = os.path.dirname(filename)
         # reordering ftypes will only take effect the next time a filename dialog is
         # opened
@@ -459,7 +503,7 @@ class MorlaFrame(tk.Frame):
             try:
                 content = f.read().strip()
             except UnicodeDecodeError:
-                msg = f"> couldn't read {filename}!"
+                msg = f"couldn't read {filename}!"
                 print(msg)
                 # typeset_Text(msg, self.log_text)
             else:
@@ -653,7 +697,7 @@ class MorlaFrame(tk.Frame):
             self.set_exercises_button(False)
         else:
             nothing_parsed = self.get_string("no_questions_parsed")
-            print(f"> {nothing_parsed}.")
+            print(f"{nothing_parsed}.")
 
     def open_exercises_window(self):
         exercises_word = self.get_string("exercises")
@@ -715,31 +759,26 @@ def _cleanup() -> None:
             os.remove(ini_name)
             # os.rmdir(morla_frame.full_app_dir)
         except FileNotFoundError:
-            print("> Couldn't erase", ini_name)
+            print("Couldn't erase", ini_name)
         else:
-            print(f"> File {ini_name} erased.")
+            print(f"File {ini_name} erased.")
         with Cd(morla_frame.home_dir):
             try:
                 os.rmdir(".morla")
             except FileNotFoundError:
-                print("> Couldn't erase .morla")
+                print("Couldn't erase .morla")
             else:
-                print(f"> Directory {morla_frame.home_dir}.morla/ erased.")
+                print(f"Directory {morla_frame.home_dir}.morla/ erased.")
 
 
 def gui_loop() -> None:
-    print("sys.argv:", sys.argv)
-    morla_frame = MorlaFrame()
+    to_open = sys.argv[1] if len(sys.argv) == 2 else ""
+    morla_frame = MorlaFrame(to_open)
     exit_status = morla_frame.mainloop()
     if False:
         _cleanup()
-    try:
-        logging.shutdown()
-    except:
-        pass
     sys.exit(exit_status)
 
 
 if __name__ == "__main__":
-    print("This module should not be run alone.")
-    sys.exit()
+    sys.exit("This module should not be run alone.")

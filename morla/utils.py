@@ -24,7 +24,7 @@ from tkinter import re
 # from morla import *
 
 
-# UTF8     = "utf-8"
+UTF8 = "utf-8"
 COPYRIGHT = "\xa9"  # (c) symbol
 SPACE = " "
 UNDERSCORE = "_"
@@ -84,7 +84,11 @@ def get_extension(filename: str) -> str:
 
 # str functions ------------------------------------------------------------------------
 def print_sep() -> None:
-    print("-" * 79)
+    try:
+        width = os.get_terminal_size().columns
+    except OSError:
+        width = 79
+    print("-" * width)
 
 
 def delete(x: str, y: str) -> str:

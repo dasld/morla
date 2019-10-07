@@ -7,6 +7,7 @@ import os
 
 from configparser import ConfigParser
 
+from tkinter import sys
 import tkinter as tk
 
 from morla.utils import *
@@ -73,5 +74,4 @@ class Preferences(ConfigParser):
 
 
 if __name__ == "__main__":
-    print("This module should not be run alone.")
-    tk.sys.exit()
+    sys.exit("This module should not be run alone.")

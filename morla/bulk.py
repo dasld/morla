@@ -3,7 +3,7 @@
 from typing import Optional, Union, Sequence
 
 # tk provides the re module
-from tkinter import re  # , sys
+from tkinter import re, sys
 
 from morla.utils import *
 from morla.configuration import Configuration
@@ -297,7 +297,4 @@ class Parser:
 
 
 if __name__ == "__main__":
-    print("This module should not be run alone.")
-    from tkinter import sys
-
-    sys.exit()
+    sys.exit("This module should not be run alone.")

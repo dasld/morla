@@ -11,13 +11,14 @@ from morla import *
 
 
 def readme():
-    with open("README.md") as readme_file:
+    with open("README.rst") as readme_file:
         return readme_file.read()
 
 
 setup(name = SELETOR_NAME,
-      version = SELETOR_VERSION,
-      description = "Application to parse and select (La)TeX exercises.",
+      #version = SELETOR_VERSION,
+      version = ".".join([str(i) for i in SELETOR_VERSION]),
+      description = "Application to parse and format LaTeX exercises.",
       url = "https://github.com/dasld/morla",
       author = SELETOR_AUTHOR,
       author_email = SELETOR_EMAIL,
@@ -32,6 +33,7 @@ setup(name = SELETOR_NAME,
           "itertools",
           "io",
           "json",
+          "logging",
           "os",
           "pywin32",
           "setuptools",
