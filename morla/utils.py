@@ -1,8 +1,19 @@
 # -*- coding: utf-8 -*-
 
-from typing import Any, Dict, Hashable, List, Optional, Set, Sequence, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    Hashable,
+    List,
+    Optional,
+    Set,
+    Sequence,
+    Tuple,
+)
 
-from functools import reduce
+from functools import reduce, wraps
 from itertools import chain
 
 import os
@@ -14,10 +25,10 @@ from tkinter import re
 
 
 # UTF8     = "utf-8"
-COPYRIGHT = "\xa9"
+COPYRIGHT = "\xa9"  # (c) symbol
 SPACE = " "
 UNDERSCORE = "_"
-EOL = "\n"
+EOL = "\n" if os.name == "posix" else "\r\n"
 COMMA = ", "
 PERCENT = "%"
 LDOTS = "..."
@@ -35,9 +46,10 @@ USER = "USER"
 PREVIOUS = []
 
 
+# OS functions -------------------------------------------------------------------------
 class Cd:
     """Context manager for changing the current working directory.
-    https://stackoverflow.com/a/13197763/5737038
+    https://stackoverflow.com/a/13197763
     """
 
     def __init__(self, new_path):
@@ -63,12 +75,20 @@ class Cd:
             print("> returning to", self.old_path)
 
 
-#--- str functions ------------------------------------------------------------
+def get_extension(filename: str) -> str:
+    if not os.path.isfile(filename):
+        raise ValueError
+    ext = os.path.splitext(filename)[1]  # filename.split(".")[-1]
+    return ext.strip().lower() if ext else "*"
+
+
+# str functions ------------------------------------------------------------------------
 def print_sep() -> None:
     print("-" * 79)
 
 
 def delete(x: str, y: str) -> str:
+    # return re.sub(fr"^{y}", "", x).strip()
     return x.replace(y, "").strip()
 
 
@@ -85,11 +105,17 @@ def quote(s: str) -> str:
     return f'"{s}"'
 
 
+def var_zfill(*args: int) -> Generator[str, None, None]:
+    widest = max([len(str(i)) for i in args])
+    for i in args:
+        yield str(i).zfill(widest)
+
+
 def make_end(start: str, end: str) -> str:
     """Returns a string that starts as start and ends as end. If start is shorter than
     end, end itself is returned.
-    >>> make_end("Foobar", "900")
-    ... "Foo900"
+    >>> make_end("foobar", "900")
+    ... "foo900"
     :param str start: starting str
     :param str end: ending str
     :returns: a str that starts as start and ends as end
@@ -109,24 +135,22 @@ def truncate(
 ) -> str:
     """Returns prefix + s + suffix, if the total length of this is <length> characters
     at most.
-    If it is too lengthy, then remove characters from s, then from the prefix, then from
-    the suffix, until an acceptable length is achieved.
+    If not, then it removes characters from s, then from the prefix, then from the
+    suffix, until an acceptable length is achieved.
     :param int length: maximum length of the resulting string
     :param str prefix: str to add right before s
     :param str prefix: str to append to s
-    :param bool smart: 0: nothing; 1: double whitespace reduced to single whitespace,
-                       trailing whitespace removed
+    :param bool smart: 0: nothing;
+                       1: double whitespace reduced to single whitespace, trailing
+                       whitespace removed;
                        2: all whitespace removed
     :returns: prefix + s + suffix, possibly truncated
     """
-    # ensure length is a non-negative integer-like
-    if not isinstance(length, (int, float)):
-        raise TypeError("length must be int or float.")
-    elif length < 0:
+    # ensure length is a non-negative integer
+    if not isinstance(length, int):
+        raise TypeError("length must be int.")
+    if length < 0:
         raise ValueError("length must not be negative.")
-    elif int(length) != length:
-        # even if length is a float, it must "look like" an integer
-        raise ValueError("length must be an integer (int or float).")
     # check types of both prefix and suffix
     if prefix is not None and not isinstance(prefix, str):
         raise TypeError("prefix must be str or None.")
@@ -225,7 +249,7 @@ def _truncate_test(simple: bool = True, reps: int = 1_000) -> None:
         print(f"winner is ~{round(loser/winner, 2)}x better than loser!")
 
 
-#--- dict functions -----------------------------------------------------------
+# dict functions -----------------------------------------------------------------------
 def dict_diff(d1: dict, d2: dict, lazy: Optional[bool] = True) -> Set[Hashable]:
     """If lazy: return a singleton set with a key that occurs in exactly one of the two
     dictionaries.
@@ -233,8 +257,8 @@ def dict_diff(d1: dict, d2: dict, lazy: Optional[bool] = True) -> Set[Hashable]:
     dictionaries.
     """
     d1_keys, d2_keys = set(d1.keys()), set(d2.keys())
-    #if not lazy:
-        # XOR: a ^ b returns a new set with elements in either a or b but not both
+    # if not lazy:
+    # XOR: a ^ b returns a new set with elements in either a or b but not both
     #    return d1_keys ^ d2_keys
     the_difference = set()
     pair = (d1_keys, d2_keys)
@@ -256,7 +280,7 @@ def dicts_diffs(L: Sequence[dict], lazy: Optional[bool] = True) -> List[Tuple[di
     # by then
     for i, d1 in enumerate(L[:-1]):
         # i + 1 can't raise an IndexError here because i will never be the last index
-        after = L[i + 1:]
+        after = L[i + 1 :]
         for d2 in after:
             diff = dict_diff(d1, d2)
             if diff:
@@ -282,15 +306,15 @@ def are_subdicts_invalid(D: Dict[Hashable, Dict], lazy: Optional[bool] = True) -
                 continue
             if lazy:
                 return (key, diff)
-                #diff_str = COMMA.join(sorted(diff))
-                #msg = truncate(f"Key mismatch in {key}: {diff_str}")
-                #raise ValueError(msg)
+                # diff_str = COMMA.join(sorted(diff))
+                # msg = truncate(f"Key mismatch in {key}: {diff_str}")
+                # raise ValueError(msg)
             else:
                 all_differences.append()
         return all_differences
 
 
-#--- iterable's functions -----------------------------------------------------
+# iterable's functions -----------------------------------------------------------------
 def flat_len(L: Sequence) -> int:
     """Recursively looks for strings in L and returns the sum of their lengths.
     :param Sequence L: the container to be probed
@@ -316,7 +340,32 @@ def listDiff(m: Sequence, n: Sequence) -> list:
     return [x for x in m if x not in n]
 
 
-#--- misc functions -----------------------------------------------------------
+def make_first(obj: Any, L: list) -> list:
+    old_len = len(L)
+    try:
+        i = L.index(obj)
+    except ValueError:
+        pass
+    else:
+        del L[i]
+        L.insert(0, obj)
+    assert len(L) == old_len
+    return L
+
+
+# misc functions -----------------------------------------------------------------------
+def _is_match(f: Callable, attr: str) -> None:
+    def wrapper(f):
+        @wraps(f)
+        def wrapped(self, *f_args, **f_kwargs):
+            if callable(_lambda) and re.search(pattern, (_lambda(self) or "")):
+                f(self, *f_args, **f_kwargs)
+
+        return wrapped
+
+    return wrapper
+
+
 def reveal(x: Any, D: dict = locals().copy()) -> str:
     global PREVIOUS
     current = []
@@ -339,6 +388,7 @@ def reveal(x: Any, D: dict = locals().copy()) -> str:
 
 if __name__ == "__main__":
     from tkinter import sys
+
     #
     _truncate_test(False, 10_000)
     #

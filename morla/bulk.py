@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 
-from typing import Optional, Union
+from typing import Optional, Union, Sequence
 
 # tk provides the re module
-from tkinter import re
+from tkinter import re  # , sys
 
-from morla.configuration import Configuration
 from morla.utils import *
+from morla.configuration import Configuration
+
+
+class ParsingException(Exception):
+    pass
 
 
 class Question:
@@ -164,7 +168,9 @@ class Parser:
         self.clear()
         return q
 
-    def read(self, text: list, configuration: Union[dict, Configuration]) -> None:
+    def read(
+        self, text: Sequence[str], configuration: Union[dict, Configuration]
+    ) -> None:
         if isinstance(configuration, (dict, Configuration)):
             configs = Configuration(configuration)
         else:
@@ -173,21 +179,23 @@ class Parser:
         self.location = self.OUT
         sample = SPACE.join(text[:6])
         print(truncate(sample, prefix="Reading: "))
-        for index, line in enumerate(text):
+        indexes = var_zfill(*range(1, len(text) + 1))
+        # assert len(list(indexes)) == len(text)
+        for index, line in zip(indexes, text):  # enumerate(text, start=1):
             line = line.strip()
             print(truncate(line, prefix=f"{index}: "))
             if line.startswith(PERCENT):
                 # the current line is a LaTeX comment
                 # first, disregard the % character
-                line = delete(line, PERCENT)
+                line = re.sub(r"^%+", "", line)
+                # .strip(PERCENT)
+                # delete(line, PERCENT)
                 if self.location == self.OUT:
-                    # a question has started! reset the question_type:
+                    # a question has started!
                     self.question_type = ""
-                    # position the reader correctly:
                     self.location = self.IN_QUESTION
-                    # parse this first line; it should be in the
+                    # this first line should look like this:
                     # % UFRJ-RJ 2011
-                    # format
                     tokens = line.split()
                     self.source = SPACE.join(tokens[:-1])
                     self.year = tokens[-1]
@@ -214,14 +222,14 @@ class Parser:
                     latex_value = latex_value.lower()
                     source = self.source.lower()
                     if latex_key == configs.LABEL:
-                        if latex_value.strip("q:") not in source:
-                            print(f"{latex_value} is not in {self.source}!")
+                        if latex_value.lstrip("q:") not in source:
+                            print(f"> {latex_value} is not in {self.source}!")
                         else:
                             pass
                             # print(f"{latex_key}={latex_value} is ok!")
                     elif latex_key == configs.ORIGIN:
                         if latex_value.strip("}{") not in self.source:
-                            print(f"{latex_value} is not in {self.source}!")
+                            print(f"> {latex_value} is not in {self.source}!")
                         else:
                             pass
                             # print(f"{latex_key}={latex_value} is ok!")
@@ -269,15 +277,13 @@ class Parser:
                 elif self.location == self.IN_ANSWER:
                     self.explanations.append(line)
                 else:
-                    # something wrong has happened
-                    pass
+                    raise ParsingException
             # print(reveal(self))
         self.location = None
 
     def pretty_print(self) -> str:
         if not self.questions:
             # no_questions_parsed = self.gets
-            print("No questions have been correctly parsed.")
             return ""
         double_eol = EOL * 2
         return double_eol.join([str(q) for q in self.questions])

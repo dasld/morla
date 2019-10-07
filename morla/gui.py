@@ -5,6 +5,8 @@ from typing import Callable, Iterable, List, Union  # , TypeVar
 # sys is already loaded by tkinter; use tk.sys instead
 # import base64
 from functools import partial, wraps
+from contextlib import redirect_stdout, redirect_stderr
+import io
 
 # import webbrowser as browser
 
@@ -146,9 +148,10 @@ def zoom(widget: tk.Tk, value: Optional[bool] = None) -> bool:
         raise ValueError("value must be bool or None")
     return widget.wm_attributes("-zoomed")
 
+
 def center(win: Union[tk.Tk, tk.Toplevel]) -> None:
     """Centers a tkinter window.
-    https://stackoverflow.com/a/10018670/5737038
+    https://stackoverflow.com/a/10018670
     :param win: the tk.Tk or tk.Toplevel window to center
     """
     # changing the cursor
@@ -281,6 +284,22 @@ def select_all(t: tk.Text) -> "break":
     t.mark_set(tk.INSERT, "1.0")
     t.see(tk.INSERT)
     return "break"
+
+
+@keepTextDisabled
+def typeset_Text(content: str, Text: tk.Text, mode: str = "w") -> str:
+    mode = mode.lower()
+    if mode not in "aw":
+        raise ValueError(f"{mode} should be either w(rite) (default) or a(ppend).")
+    size = len(Text.get("1.0", tk.END))
+    if mode == "w" or size > 1500:
+        clear_text(Text)
+        # Text.insert(tk.END, "--cleared--")
+        print(f"> {Text} cleared")
+    if not content.endswith(EOL):
+        content += EOL
+    Text.insert(tk.END, content)
+    return Text.get("1.0", tk.END)
 
 
 if __name__ == "__main__":

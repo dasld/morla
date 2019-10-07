@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from typing import Any, Callable, List, Iterable, Optional, Union  # , TypeVar
+from typing import Any, Callable, List, Iterable, Optional, Union, Tuple
 
-# sys is already loaded by tkinter; use tk.sys instead
+# sys is already loaded by tkinter; see below
 import os
-from contextlib import redirect_stdout, redirect_stderr
-import io
-import json
+#import logging
 
 # import base64
-from functools import partial
+from functools import partial, wraps
+import json
 
 # import webbrowser as browser
 
-from tkinter import re
+from tkinter import re, sys
 from tkinter import filedialog  # messagebox
 from tkinter.constants import N, S, E, W, RAISED, SUNKEN, FLAT, RIDGE, GROOVE, SOLID
 from tkinter import ttk  # import Notebook
@@ -35,11 +34,11 @@ import morla
 # tk.Text = TypeVar("tk.Text", tk.Text, ScrolledText)
 
 # can only be set to False by MorlaFrame.actually_quit
-#MORLA_RUNNING = True
+# MORLA_RUNNING = True
 
 # dimensions
-X_FACTOR = 0.66
-Y_FACTOR = 0.75
+# X_FACTOR = 0.66
+# Y_FACTOR = 0.75
 TEXT_HEIGHT = 20
 TEXT_WIDTH = 40
 
@@ -55,7 +54,7 @@ CURSOR_GREEN = "#45F700"
 CURSOR_RED = "#990000"  # "#CD0101"
 
 # default symbols
-# https://stackoverflow.com/a/37799580/5737038
+# https://stackoverflow.com/a/37799580
 ERROR_SYMBOL = "::tk::icons::error"
 WARNING_SYMBOL = "::tk::icons::warning"
 INFO_SYMBOL = "::tk::icons::information"
@@ -67,15 +66,49 @@ ICON_PATH = os.path.join(HERE, "..", "data", "logo.gif")
 LANGUAGE_PATH = os.path.join(HERE, "..", "data", "languages.json")
 
 
+class MorlaError(Exception):
+    pass
+
+
+def divert2log(f: Callable) -> Callable:
+    """Decorator to be used exclusively by MorlaFrame instances; it is here, and not as
+    a MorlaFrame staticmethod, because I can't make it work as a static method.
+    """
+
+    @wraps(f)
+    def wrapper(*args, **kwargs) -> Any:
+        content = io.StringIO()
+        with redirect_stdout(content), redirect_stderr(content):
+            output = f(*args, **kwargs)
+            try:
+                log_Text = args[0].log_text
+            except (IndexError, AttributeError):
+                raise MorlaError(
+                    "> divert2log can only be called by a MorlaFrame method!"
+                )
+            else:
+                typeset_Text(content.getvalue(), log_Text, mode="a")
+        return output
+
+    return wrapper
+
+
 class MorlaFrame(tk.Frame):
-    ftypes = [("Text files", "*.txt"), ("(La)TeX files", "*.tex"), ("All files", "*")]
+    ftypes = [("LaTeX files", "*.tex"), ("Text files", "*.txt"), ("All files", "*")]
+
+    def reorder_ftypes(self, ext: str) -> List[Tuple[str]]:
+        for pair in self.ftypes:
+            if pair[1].endswith(ext):
+                make_first(pair, self.ftypes)
+                break
+        return self.ftypes
 
     def __init__(self) -> None:
         master = tk.Tk()
         super(MorlaFrame, self).__init__(master)
         self.master = master
-        #master.attributes("-fullscreen", True)
-        # allow resizing
+        # master.attributes("-fullscreen", True)
+        # allow resizing; resizing is twice as fast horizontally
         master.resizable(True, True)  # (False, False)
         master.grid_rowconfigure(0, weight=2)
         master.grid_columnconfigure(0, weight=1)
@@ -87,26 +120,35 @@ class MorlaFrame(tk.Frame):
         with open(LANGUAGE_PATH, "r") as json_file:
             language_dict = json.load(json_file)
         if are_subdicts_invalid(language_dict):
-            raise ValueError("> invalid JSON file!")
+            raise MorlaError("> invalid JSON file!")
         self.language_dict = language_dict
         # set the HOME_DIR
-        # https://stackoverflow.com/a/10644400/5737038
+        # https://stackoverflow.com/a/10644400
         if os.name == "posix":
             self.home_dir = os.path.expanduser("~")
-        else:
+        elif os.name == "nt":
             from win32com.shell import shellcon, shell
 
             self.home_dir = shell.SHGetFolderPath(0, shellcon.CSIDL_APPDATA, 0, 0)
+        else:
+            self.home_dir = HERE
         if not self.home_dir.endswith(os.sep):
             self.home_dir += os.sep
-        print(self.home_dir)
+        print("home dir:", self.home_dir)
         # set up the morla directory
-        self.app_dir = "." if os.name == "posix" else ""
+        self.app_dir = "." if os.name != "nt" else ""
         self.app_dir += morla.SELETOR_NAME.lower().replace(" ", "-") + os.sep
         self.full_app_dir = self.home_dir + self.app_dir
         if not os.path.isdir(self.full_app_dir):
             os.mkdir(self.full_app_dir)
+        print("app dir:", self.app_dir)
         # both home_dir and app_dir end with os.sep
+        # set up a logging variable
+        #logging_stream = io.StringIO()
+        #logging.basicConfig(stream=logging_stream, level=logging.DEBUG)  # filename="example.log"
+        # last_dir and last_ext
+        self.last_dir = self.home_dir
+        self.last_ext = "*"
         # set a Preferences object
         prefs_path = "preferences.ini"
         with Cd(self.full_app_dir):
@@ -179,20 +221,31 @@ class MorlaFrame(tk.Frame):
             self.actually_quit()
 
     def actually_quit(self) -> None:
-        #self.quit()
+        # self.quit()
         self.master.destroy()
 
+    def set_exercises_button(self, value: bool) -> None:
+        if isinstance(value, str):
+            raise TypeError
+        exercises_word = self.get_string("exercises")
+        new_state = "normal" if value else "disabled"
+        try:
+            self.menubar.entryconfig(exercises_word, state=new_state)
+        except AttributeError:
+            raise MorlaError
+
     def init_menubar(self) -> None:
+        # tearoff=0 keeps the user from detaching the Menu
         self.menubar = tk.Menu(self.master, relief=GROOVE, tearoff=0)
         self.master.config(menu=self.menubar)
-        # file cascade; tearoff=0 keeps the user from detaching the cascade
+        # file cascade
         fileMenu = tk.Menu(self.menubar, tearoff=0)
         file_word = self.get_string("file")
         self.menubar.add_cascade(label=file_word, menu=fileMenu)
         open_word = self.get_string("open") + LDOTS
         fileMenu.add_command(label=open_word, command=self.on_open_file)
         save_word = self.get_string("save") + LDOTS
-        fileMenu.add_command(label=save_word, command=self.save_file)
+        fileMenu.add_command(label=save_word, command=self.on_save_file)
         quit_word = self.get_string("quit")
         fileMenu.add_command(label=quit_word, command=self.prompt_quit)
         # configs "button"
@@ -201,6 +254,11 @@ class MorlaFrame(tk.Frame):
         # preferences "button"
         preferences_word = self.get_string("preferences")
         self.menubar.add_command(label=preferences_word, command=self.open_preferences)
+        # Exercises "button"
+        exercises_word = self.get_string("exercises")
+        self.menubar.add_command(label=exercises_word, command=lambda *a, **kw: None)
+        self.set_exercises_button(False)
+        # menubar.entryconfig(exercises_word, state="disabled")
         # about "button"
         about_word = self.get_string("about")
         self.menubar.add_command(label=about_word, command=self.open_about_window)
@@ -246,8 +304,10 @@ class MorlaFrame(tk.Frame):
         self.input_text = ScrolledText(
             self, height=TEXT_HEIGHT, width=TEXT_WIDTH, font=SANS_FONT
         )
-        self.input_text.grid(row=1, column=0, columnspan=2, sticky=(N, E, W), padx=BORDER, pady=BORDER)
-        #self.columnconfigure(0, weight=1)
+        self.input_text.grid(
+            row=1, column=0, columnspan=2, sticky=(N, E, W), padx=BORDER, pady=BORDER
+        )
+        # self.columnconfigure(0, weight=1)
         # output area
         # grid(1, 2-3)
         self.output_text = ScrolledText(
@@ -255,13 +315,18 @@ class MorlaFrame(tk.Frame):
         )
         self.output_text.configure(state=DISABLED)
         # self.output_text.bind('<Control-c>', copy_cmd)
-        self.output_text.grid(row=1, column=2, columnspan=2, sticky=(N, E, W), padx=BORDER, pady=BORDER)
+        self.output_text.grid(
+            row=1, column=2, columnspan=2, sticky=(N, E, W), padx=BORDER, pady=BORDER
+        )
         # log rect
         # grid(2, 0-3)
         log_word = self.get_string("log")
         self.logRect = tk.LabelFrame(self, text=log_word, font=MONO_FONT)
-        self.logRect.grid(row=2, column=0, columnspan=4, sticky=(N, S, E, W), padx=BORDER, pady=BORDER)
+        self.logRect.grid(
+            row=2, column=0, columnspan=4, sticky=(N, S, E, W), padx=BORDER, pady=BORDER
+        )
         self.logRect.grid_rowconfigure(0, weight=2)
+        self.logRect.grid_columnconfigure(0, weight=1)
         # log area
         self.log_text = ScrolledText(
             self.logRect,
@@ -272,7 +337,9 @@ class MorlaFrame(tk.Frame):
             font=MONO_FONT,
         )
         self.log_text.config(insertbackground="white", state=DISABLED)
-        self.log_text.grid(row=0, sticky=(N, S, E, W), padx=BORDER, pady=BORDER)  #row=2, column=0, columnspan=4,
+        self.log_text.grid(
+            row=0, sticky=(N, S, E, W), padx=BORDER, pady=BORDER
+        )  # row=2, column=0, columnspan=4,
 
     def open_preferences(self) -> None:
         # self.prefs_window = openToplevel()
@@ -342,12 +409,12 @@ class MorlaFrame(tk.Frame):
                 chosen = chosen.get()
                 if cur == chosen:
                     continue
-                #changes.append(f"{k}: {cur} {ARROW} {chosen}")
+                # changes.append(f"{k}: {cur} {ARROW} {chosen}")
                 if proceed is None:
                     # "is None" ensures that this clause occurs exactly once
                     confirm_changes = self.get_string("confirm_changes")
                     do_you_confirm = self.get_string("do_you_confirm_changes")
-                    #body = do_you_confirm_changes + EOL + EOL.join(changes)
+                    # body = do_you_confirm_changes + EOL + EOL.join(changes)
                     proceed = self.pop_yesno(do_you_confirm, title=confirm_changes)
                 if not proceed:
                     return
@@ -375,31 +442,43 @@ class MorlaFrame(tk.Frame):
     def input_text_content(self) -> str:
         return self.input_text.get("1.0", tk.END)
 
+    @divert2log
     def on_open_file(self) -> None:
         open_file_word = self.get_string("open_file")
         filename = filedialog.askopenfilename(
-            initialdir=self.home_dir, title=open_file_word, filetypes=self.ftypes
+            initialdir=self.last_dir, title=open_file_word, filetypes=self.ftypes
         )
         if not filename:
             return
+        self.last_dir = os.path.dirname(filename)
+        # reordering ftypes will only take effect the next time a filename dialog is
+        # opened
+        ext = get_extension(filename)
+        self.reorder_ftypes(ext)
         with open(filename, "r") as f:
             try:
                 content = f.read().strip()
             except UnicodeDecodeError:
                 msg = f"> couldn't read {filename}!"
                 print(msg)
-                self.typeset_Text(msg, self.log_text)
+                # typeset_Text(msg, self.log_text)
             else:
-                self.typeset_Text(content, self.input_text)
+                typeset_Text(content, self.input_text)
 
-    def save_file(self) -> None:
+    @divert2log
+    def on_save_file(self) -> None:
         save_file_word = self.get_string("save_file")
         filename = filedialog.asksaveasfilename(
-            initialdir=self.home_dir, title=save_file_word, filetypes=self.ftypes
+            initialdir=self.last_dir, title=save_file_word, filetypes=self.ftypes
         )
         if filename:
             with open(filename, "w") as f:
                 f.write(self.input_text_content)
+            self.last_dir = os.path.dirname(filename)
+            # reordering ftypes will only take effect the next time a filename dialog is
+            # opened
+            ext = get_extension(filename)
+            self.reorder_ftypes(ext)
 
     def pop_error(self, message) -> None:
         error_word = self.get_string("error")
@@ -430,28 +509,25 @@ class MorlaFrame(tk.Frame):
 
     def pop_yesno(self, question: str, title: str = "Question") -> bool:
         with CustomToplevel(self, title=title) as question_window:
+            # icon and message
             question_icon = tk.Label(question_window, image=QUESTION_SYMBOL)
             question_icon.image = QUESTION_SYMBOL
             question_icon.grid(row=0, rowspan=2, column=0, padx=BORDER)
-            #
             question_message = tk.Label(question_window, text=question)
             question_message.grid(row=0, column=1, columnspan=2)
-            #
+            # the choice
             choice = tk.BooleanVar()
             choose_yes = partial(tk.BooleanVar.set, choice, True)
             choose_no = partial(tk.BooleanVar.set, choice, False)
-            #
-            # ok_button = tk.Button(error_window, text="Ok", command=error_window.destroy, cursor="hand1")
             yes_word = self.get_string("yes")
             yes_button = CustomButton(
                 question_window, text=yes_word, command=choose_yes
             )
             yes_button.grid(row=1, column=1)
-            #
             no_word = self.get_string("no")
             no_button = CustomButton(question_window, text=no_word, command=choose_no)
             no_button.grid(row=1, column=2)
-            #
+            # center and wait
             center(question_window)
             question_window.wait_variable(choice)
         print(choice.get())
@@ -562,45 +638,27 @@ class MorlaFrame(tk.Frame):
         self.set_configs(table=Configuration())
         self.typeset_configsEntries()
 
-    @keepTextDisabled
-    def typeset_Text(self, content: str, Text: tk.Text, mode: str = "w"):
-        if mode not in "aw":
-            raise ValueError(f"{mode} should be either w(rite) (default) or a(ppend).")
-        size = len(Text.get("1.0", tk.END))
-        if mode == "w" or size > 1500:
-            clear_text(Text)
-            # Text.insert(tk.END, "--cleared--")
-            print(f"> {Text} cleared")
-        if not content.endswith(EOL):
-            content += EOL
-        Text.insert(tk.END, content)
-        return Text.get("1.0", tk.END)
-
-    # @divert
+    @divert2log
     def on_parseButton_press(self):
-        # self.writeOutputArea('*', mode='a')
-        # return
-        text = self.input_text_content.split(EOL)
-        # print(f"|{text}|", type(text))
-        # return
-        log_text = io.StringIO()
-        with redirect_stdout(log_text), redirect_stderr(log_text):
-            self.parser.read(text, self.configs)
-        # typeset the log
-        self.typeset_Text(log_text.getvalue(), self.log_text, mode="a")
+        lines = self.input_text_content.split(EOL)
+        self.parser.read(lines, self.configs)
+        self.set_exercises_button(True)
 
+    @divert2log
     def on_formatButton_press(self):
-        log_content = io.StringIO()
-        with redirect_stdout(log_content), redirect_stderr(log_content):
-            # get the output
-            questions = self.parser.pretty_print()
-        # typeset the log
-        log_content = log_content.getvalue()
-        self.typeset_Text(log_content, self.log_text, mode="a")
-        # if there's something to typeset, typeset it and refresh the parser
+        questions = self.parser.pretty_print()
         if questions:
-            self.typeset_Text(questions, self.output_text)
+            typeset_Text(questions, self.output_text)
             self.parser.clear(total=True)
+            self.set_exercises_button(False)
+        else:
+            nothing_parsed = self.get_string("no_questions_parsed")
+            print(f"> {nothing_parsed}.")
+
+    def open_exercises_window(self):
+        exercises_word = self.get_string("exercises")
+        with CustomToplevel(self, title=exercises_word) as exerc_window:
+            pass
 
     def open_about_window(self):
         name = morla.SELETOR_NAME
@@ -613,7 +671,7 @@ class MorlaFrame(tk.Frame):
         # mailto = "mailto:" + email
         # the license is what is enclosed in parenthesis in the license string,
         # excluding the parenthesis
-        license = tk.re.findall("\((.+)\)", morla.SELETOR_LICENSE)[0]
+        license = re.findall("\((.+)\)", morla.SELETOR_LICENSE)[0]
         license = f"{COPYRIGHT} {license}"
         logo = self.icon
         # if logo: logo = logo.subsample(7, 7)
@@ -634,15 +692,15 @@ class MorlaFrame(tk.Frame):
         author_label = tk.Label(window, text=author_str)
         author_label.grid(row=1, column=1)
         # email
-        email_Entry = tk.Entry(window)
-        email_Entry.insert(tk.END, email)
-        email_Entry.config(state=DISABLED)
-        email_Entry.grid(row=2, column=1)
-        # TOP = email_Entry.winfo_toplevel()
+        email_Label = tk.Label(
+            window, text=email, justify="center", relief=RAISED, padx=BORDER
+        )
+        email_Label.grid(row=2, column=1)
+        # TOP = email_Label.winfo_toplevel()
         email_export = partial(self.export2clipboard, email)
         email_copy = self.get_string("email_copy")
-        email_hoverinfo = Tooltip(email_Entry, email_copy)
-        email_Entry.bind("<Any-Button>", email_export)
+        email_hoverinfo = Tooltip(email_Label, email_copy)
+        email_Label.bind("<Any-Button>", email_export)
         # license information
         license_label = tk.Label(window, text=license)
         license_label.grid(row=3, column=1)
@@ -670,14 +728,18 @@ def _cleanup() -> None:
 
 
 def gui_loop() -> None:
-    print("tk.sys.argv:", str(tk.sys.argv))
+    print("sys.argv:", sys.argv)
     morla_frame = MorlaFrame()
     exit_status = morla_frame.mainloop()
     if False:
         _cleanup()
-    tk.sys.exit(exit_status)
+    try:
+        logging.shutdown()
+    except:
+        pass
+    sys.exit(exit_status)
 
 
 if __name__ == "__main__":
     print("This module should not be run alone.")
-    tk.sys.exit()
+    sys.exit()

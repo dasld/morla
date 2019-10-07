@@ -33,6 +33,7 @@ setup(name = SELETOR_NAME,
           "io",
           "json",
           "os",
+          "pywin32",
           "setuptools",
           "tkinter",
           "typing"
