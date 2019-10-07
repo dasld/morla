@@ -83,10 +83,20 @@ def get_extension(filename: str) -> str:
 
 
 # str functions ------------------------------------------------------------------------
+def align(char: str, *args: str, filler=SPACE) -> List[str]:
+    indexes = [s.index(char) for s in args]
+    for s in args:
+        i = s.index(char)
+        delta = max(indexes) - i
+        if not delta:
+            yield s
+        else:
+            yield "".join([s[:i+1], filler * delta, s[i+1:]])
+
 def print_sep() -> None:
     try:
         width = os.get_terminal_size().columns
-    except OSError:
+    except Exception:
         width = 79
     print("-" * width)
 

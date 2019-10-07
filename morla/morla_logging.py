@@ -68,7 +68,8 @@ def init_logger(filename: str, Text: tk.Text) -> logging.Logger:
     cmd.setLevel(ERROR)
     # formatter for all handlers
     date = "%d-%m %H:%M"
-    levelname = "%(levelname)-8s"
+    levelwidth = len(logging.getLevelName(CRITICAL))
+    levelname = f"%(levelname)-{levelwidth}s"
     fmt = f"[{levelname}] %(message)s"
     formatter = logging.Formatter(fmt, datefmt=date)
     # ("%(name)-12s: %(levelname)-8s %(message)s")

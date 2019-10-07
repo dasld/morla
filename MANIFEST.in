@@ -1,1 +1,4 @@
-include README.md
+include README.rst
+include data/languages.json
+include data/logo.ico
+include data/logo.png

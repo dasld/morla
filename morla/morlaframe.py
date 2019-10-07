@@ -3,6 +3,7 @@
 from typing import Any, Callable, List, Iterable, Optional, Union, Tuple
 
 # sys is already loaded by tkinter; see below
+from os.path import abspath, expanduser, relpath
 import os
 
 import io
@@ -64,9 +65,29 @@ INFO_SYMBOL = "::tk::icons::information"
 QUESTION_SYMBOL = "::tk::icons::question"
 
 # internal data
-HERE = os.path.dirname(os.path.abspath(__file__))
-ICON_PATH = os.path.join(HERE, "..", "data", "logo.gif")
-LANGUAGE_PATH = os.path.join(HERE, "..", "data", "languages.json")
+#HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = abspath(".")
+
+
+def resource_path(rel_path: str) -> str:
+    """ Get absolute path to resource, works for dev and for PyInstaller.
+    https://stackoverflow.com/a/13790741
+    """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = HERE
+    return os.path.join(base_path, rel_path)
+
+
+ICON_PATH = resource_path(abspath(os.path.join("data", "logo.gif")))
+#os.path.abspath(os.path.join(HERE, "..", "data", "logo.gif"))
+LANGUAGE_PATH = resource_path(abspath(os.path.join("data", "languages.json")))
+#os.path.abspath(os.path.join(HERE, "..", "data", "languages.json"))
+print("HERE:", HERE)
+print("ICON_PATH:", ICON_PATH)
+print("LANGUAGE_PATH:", LANGUAGE_PATH)
 
 
 class MorlaError(Exception):

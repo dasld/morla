@@ -5,7 +5,7 @@
 
 #from tkinter import sys as tksys
 #tksys.path.insert(0, "/home/daniel/Documents/Informática/git/morla/morla")
-from setuptools import setup
+from setuptools import setup  # , find_packages
 
 from morla import *
 
@@ -24,6 +24,7 @@ setup(name = SELETOR_NAME,
       author_email = SELETOR_EMAIL,
       license = SELETOR_LICENSE,
       packages = ["morla"],
+      python_requires=">=3.6",
       install_requires = [  # in alphabetical order
           # "base64",
           "configparser",
